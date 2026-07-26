@@ -1,5 +1,6 @@
 package com.tolongtukar.app
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import com.tolongtukar.app.navigation.Screen
 import com.tolongtukar.app.screens.ConverterScreen
@@ -9,7 +10,22 @@ import com.tolongtukar.app.util.BackHandler
 
 @Composable
 fun App() {
-    TolongTukarTheme {
+    val settings = remember { SettingsStorage() }
+
+    // "system" follows device theme, otherwise explicit true/false
+    val darkModePref = remember { settings.getString(SettingsKeys.DARK_MODE, "system") }
+    val systemDark = isSystemInDarkTheme()
+    var darkMode by remember {
+        mutableStateOf(
+            if (darkModePref == "system") systemDark
+            else darkModePref == "true"
+        )
+    }
+    var followSystem by remember { mutableStateOf(darkModePref == "system") }
+
+    val effectiveDark = if (followSystem) systemDark else darkMode
+
+    TolongTukarTheme(darkTheme = effectiveDark) {
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
         val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
 
@@ -29,13 +45,25 @@ fun App() {
 
         when (currentScreen) {
             is Screen.Home -> HomeScreen(
-                onNavigate = { screen -> navigateTo(screen) }
+                onNavigate = { screen -> navigateTo(screen) },
+                darkMode = effectiveDark,
+                followSystem = followSystem,
+                onToggleDarkMode = { dark ->
+                    darkMode = dark
+                    followSystem = false
+                    settings.putString(SettingsKeys.DARK_MODE, if (dark) "true" else "false")
+                },
+                onToggleFollowSystem = { fs ->
+                    followSystem = fs
+                    settings.putString(SettingsKeys.DARK_MODE, if (fs) "system" else if (darkMode) "true" else "false")
+                }
             )
             is Screen.Converter -> {
                 val category = (currentScreen as Screen.Converter).category
                 ConverterScreen(
                     category = category,
-                    onBack = { goBack() }
+                    onBack = { goBack() },
+                    settings = settings
                 )
             }
         }

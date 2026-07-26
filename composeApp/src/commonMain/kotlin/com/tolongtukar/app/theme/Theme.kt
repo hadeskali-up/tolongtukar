@@ -1,6 +1,5 @@
 package com.tolongtukar.app.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -8,7 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF006B5F),            // Deep teal
+    primary = Color(0xFF006B5F),
     onPrimary = Color.White,
     primaryContainer = Color(0xFF74F8E4),
     onPrimaryContainer = Color(0xFF00201B),
@@ -57,7 +56,7 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun TolongTukarTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColors else LightColors

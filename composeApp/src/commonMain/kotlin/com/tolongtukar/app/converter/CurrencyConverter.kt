@@ -9,6 +9,9 @@ package com.tolongtukar.app.converter
  */
 object CurrencyConverter {
 
+    // When these rates were last updated
+    val lastUpdated: String = "Jul 2024 (offline rates)"
+
     // Rate = how many units of this currency = 1 USD
     private val rates: Map<String, Double> = mapOf(
         "USD" to 1.0,

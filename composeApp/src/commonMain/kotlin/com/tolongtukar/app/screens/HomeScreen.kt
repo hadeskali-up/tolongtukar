@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,13 +27,35 @@ private data class CategoryTile(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onNavigate: (Screen) -> Unit) {
+fun HomeScreen(
+    onNavigate: (Screen) -> Unit,
+    darkMode: Boolean,
+    followSystem: Boolean,
+    onToggleDarkMode: (Boolean) -> Unit,
+    onToggleFollowSystem: (Boolean) -> Unit
+) {
     val tiles = remember { buildCategoryTiles() }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("TolongTukar", fontWeight = FontWeight.Bold) },
+                actions = {
+                    if (followSystem) {
+                        IconButton(onClick = { onToggleFollowSystem(false) }) {
+                            Icon(Icons.Default.BrightnessAuto, contentDescription = "Follow system (tap to override)")
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            onToggleDarkMode(!darkMode)
+                        }) {
+                            Icon(
+                                if (darkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = if (darkMode) "Switch to light" else "Switch to dark"
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
