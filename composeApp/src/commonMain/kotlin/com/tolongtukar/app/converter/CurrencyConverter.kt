@@ -78,7 +78,9 @@ object CurrencyConverter {
 
     /**
      * Build UnitDef list for the Currency category.
-     * Each currency's factor = its USD rate (so base USD = 1.0).
+     * rate = "how many units = 1 USD" (e.g. MYR rate 4.68 means 1 USD = 4.68 MYR).
+     * FactorStrategy factor = "how many base units (USD) = 1 of this currency".
+     * So factor = 1 / rate. (1 MYR = 1/4.68 = 0.2137 USD)
      */
     fun currencyUnits(): List<UnitDef> {
         return rates.entries.sortedBy { it.key }.map { (code, rate) ->
@@ -86,7 +88,7 @@ object CurrencyConverter {
                 id = code,
                 name = currencyNames[code] ?: code,
                 symbol = code,
-                strategy = ConversionStrategy.FactorStrategy(rate)
+                strategy = ConversionStrategy.FactorStrategy(1.0 / rate)
             )
         }
     }

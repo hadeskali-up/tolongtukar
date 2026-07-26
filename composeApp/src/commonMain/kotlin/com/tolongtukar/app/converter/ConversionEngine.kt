@@ -125,6 +125,57 @@ object ConversionEngine {
         return ConversionResult.Text(output)
     }
 
+    /**
+     * Convert [value] from [fromUnitId] to every other unit in [categoryId].
+     * Returns a map of unitId → formatted result string.
+     */
+    fun convertToAll(
+        categoryId: String,
+        fromUnitId: String,
+        value: Double
+    ): Map<String, String> {
+        val category = UnitDefinitions.getCategory(categoryId)
+            ?: return emptyMap()
+
+        val fromUnit = category.units.find { it.id == fromUnitId }
+            ?: return emptyMap()
+
+        val baseValue = toBase(fromUnit, value)
+
+        return category.units.associate { unit ->
+            val result = fromBase(unit, baseValue)
+            unit.id to formatNumber(result)
+        }
+    }
+
+    /**
+     * Convert a string input to all units (for numeral systems).
+     * Returns a map of unitId → string result.
+     */
+    fun convertStringToAll(
+        categoryId: String,
+        fromUnitId: String,
+        input: String
+    ): Map<String, String> {
+        val category = UnitDefinitions.getCategory(categoryId)
+            ?: return emptyMap()
+
+        val fromUnit = category.units.find { it.id == fromUnitId }
+            ?: return emptyMap()
+
+        val fromRadix = numeralRadix(fromUnit.id)
+        val longValue = input.trim().replace(" ", "").toLongOrNull(fromRadix)
+
+        return if (longValue == null) {
+            category.units.associate { it.id to "" }
+        } else {
+            category.units.associate { unit ->
+                val toRadix = numeralRadix(unit.id)
+                unit.id to longValue.toString(toRadix).uppercase()
+            }
+        }
+    }
+
     // ── Strategy dispatch ──
 
     private fun toBase(unit: UnitDef, value: Double): Double = when (unit.strategy) {

@@ -130,15 +130,20 @@ object UnitDefinitions {
         )),
 
         // ── 6. SPEED (base: m/s) ──
-        // Pace units (min/km, min/mi) are reciprocal: base = factor / value
+        // Pace units (min/km, min/mi) are reciprocal: speed(m/s) = distance / (time_in_seconds)
+        // min/km: user enters "5 min/km" → speed = 1000m / (5*60s) = 3.333 m/s
+        // ReciprocalStrategy factor = the "speed per unit pace" constant.
+        // toBase: factor / value, fromBase: factor / baseValue
+        // For min/km: factor = 1000/60 = 16.667 (so 5 min/km → 16.667/5 = 3.333 m/s ✓)
+        // For min/mi: factor = 1609.344/60 = 26.822 (so 8 min/mi → 26.822/8 = 3.353 m/s ✓)
         CategoryDef("speed", "Speed", listOf(
             factor("kilometers_per_hour", "Kilometers per Hour", "km/h", 0.277778),
             factor("miles_per_hour", "Miles per Hour", "mph", 0.44704),
             factor("meters_per_second", "Meters per Second", "m/s", 1.0),
             factor("feets_per_second", "Feet per Second", "ft/s", 0.3048),
             factor("knots", "Knots", "kn", 0.514444),
-            reciprocal("minutes_per_kilometer", "Minutes per Kilometer", "min/km", 60.0),
-            reciprocal("minutes_per_mile", "Minutes per Mile", "min/mi", 1609.344 / 60.0 * 60.0),
+            reciprocal("minutes_per_kilometer", "Minutes per Kilometer", "min/km", 1000.0 / 60.0),
+            reciprocal("minutes_per_mile", "Minutes per Mile", "min/mi", 1609.344 / 60.0),
             factor("speed_of_light", "Speed of Light", "c", 299792458.0)
         )),
 
@@ -152,12 +157,18 @@ object UnitDefinitions {
         )),
 
         // ── 8. FUEL CONSUMPTION (base: km/liter) ──
-        // litersPer100km and milesPerGallon are reciprocal
+        // km/L is the base (factor 1.0).
+        // L/100km is reciprocal: if L/100km = 6, then km/L = 100/6 = 16.67.
+        // ReciprocalStrategy: toBase = factor/value, fromBase = factor/baseValue.
+        // L/100km: factor = 100 (6 L/100km → 100/6 = 16.67 km/L ✓)
+        // mpg (US): 1 mpg(US) = 0.425144 km/L. This is LINEAR, not reciprocal.
+        //   30 mpg → 30 * 0.425144 = 12.75 km/L ✓
+        // mpg (UK): 1 mpg(UK) = 0.354006 km/L. Also LINEAR.
         CategoryDef("fuel_consumption", "Fuel Consumption", listOf(
             factor("kilometers_per_liter", "Kilometers per Liter", "km/L", 1.0),
             reciprocal("liters_per_100km", "Liters per 100 km", "L/100km", 100.0),
-            reciprocal("miles_per_us_gallon", "Miles per US Gallon", "mpg (US)", 0.425144 * 100.0),
-            reciprocal("miles_per_imperial_gallon", "Miles per Imperial Gallon", "mpg (UK)", 0.354006 * 100.0)
+            factor("miles_per_us_gallon", "Miles per US Gallon", "mpg (US)", 0.425144),
+            factor("miles_per_imperial_gallon", "Miles per Imperial Gallon", "mpg (UK)", 0.354006)
         )),
 
         // ── 9. PRESSURE (base: pascal) ──
