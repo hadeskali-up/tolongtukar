@@ -115,8 +115,12 @@ actual class PurchaseManager : PurchasesUpdatedListener {
             }
 
             val productDetails = productDetailsList[0]
-            val offerToken = productDetails
-                .getOneTimePurchaseOfferDetailsList()?.getOrNull(0)?.offerToken ?: ""
+            // For INAPP products, offer token comes from OneTimePurchaseOfferDetails
+            val offerToken = productDetails.oneTimePurchaseOfferDetails?.offerToken ?: ""
+            if (offerToken.isEmpty()) {
+                errorCallback?.invoke("No offer available for remove_ads")
+                return@queryProductDetailsAsync
+            }
             val productDetailsParams = BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(productDetails)
                 .setOfferToken(offerToken)
