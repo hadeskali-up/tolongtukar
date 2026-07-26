@@ -57,6 +57,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.splashscreen)
             implementation("io.ktor:ktor-client-okhttp:3.0.3")
         }
 

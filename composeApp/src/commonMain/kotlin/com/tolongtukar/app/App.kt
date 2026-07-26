@@ -5,12 +5,16 @@ import androidx.compose.runtime.*
 import com.tolongtukar.app.navigation.Screen
 import com.tolongtukar.app.screens.ConverterScreen
 import com.tolongtukar.app.screens.HomeScreen
+import com.tolongtukar.app.screens.SplashScreen
 import com.tolongtukar.app.theme.TolongTukarTheme
 import com.tolongtukar.app.util.BackHandler
 
 @Composable
 fun App() {
     val settings = remember { SettingsStorage() }
+
+    // Splash state — show splash on app launch
+    var showSplash by remember { mutableStateOf(true) }
 
     // "system" follows device theme, otherwise explicit true/false
     val darkModePref = remember { settings.getString(SettingsKeys.DARK_MODE, "system") }
@@ -24,6 +28,11 @@ fun App() {
     var followSystem by remember { mutableStateOf(darkModePref == "system") }
 
     val effectiveDark = if (followSystem) systemDark else darkMode
+
+    if (showSplash) {
+        SplashScreen(onFinished = { showSplash = false })
+        return
+    }
 
     TolongTukarTheme(darkTheme = effectiveDark) {
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
