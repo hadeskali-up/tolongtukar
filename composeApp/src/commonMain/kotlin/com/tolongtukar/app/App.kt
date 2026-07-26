@@ -5,6 +5,7 @@ import androidx.compose.runtime.*
 import com.tolongtukar.app.navigation.Screen
 import com.tolongtukar.app.screens.ConverterScreen
 import com.tolongtukar.app.screens.HomeScreen
+import com.tolongtukar.app.screens.SettingsScreen
 import com.tolongtukar.app.screens.SplashScreen
 import com.tolongtukar.app.theme.TolongTukarTheme
 import com.tolongtukar.app.util.BackHandler
@@ -38,6 +39,9 @@ fun App() {
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
         val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
 
+        // Track Pro status (ads removed)
+        var isPro by remember { mutableStateOf(settings.getBoolean(SettingsKeys.IS_PRO, false)) }
+
         fun navigateTo(screen: Screen) {
             backStack.add(screen)
             currentScreen = screen
@@ -66,7 +70,24 @@ fun App() {
                     followSystem = fs
                     settings.putString(SettingsKeys.DARK_MODE, if (fs) "system" else if (darkMode) "true" else "false")
                 },
-                settings = settings
+                settings = settings,
+                isPro = isPro
+            )
+            is Screen.Settings -> SettingsScreen(
+                onBack = { goBack() },
+                darkMode = effectiveDark,
+                followSystem = followSystem,
+                onToggleDarkMode = { dark ->
+                    darkMode = dark
+                    followSystem = false
+                    settings.putString(SettingsKeys.DARK_MODE, if (dark) "true" else "false")
+                },
+                onToggleFollowSystem = { fs ->
+                    followSystem = fs
+                    settings.putString(SettingsKeys.DARK_MODE, if (fs) "system" else if (darkMode) "true" else "false")
+                },
+                settings = settings,
+                onProStatusChanged = { isPro = settings.getBoolean(SettingsKeys.IS_PRO, false) }
             )
             is Screen.Converter -> {
                 val category = (currentScreen as Screen.Converter).category

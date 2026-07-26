@@ -6,6 +6,7 @@ package com.tolongtukar.app.navigation
  */
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
+    data object Settings : Screen("settings")
 
     data class Converter(val category: String) : Screen("converter/$category") {
         companion object {

@@ -44,7 +44,8 @@ fun HomeScreen(
     followSystem: Boolean,
     onToggleDarkMode: (Boolean) -> Unit,
     onToggleFollowSystem: (Boolean) -> Unit,
-    settings: SettingsStorage
+    settings: SettingsStorage,
+    isPro: Boolean = false
 ) {
     val defaultTiles = remember { buildCategoryTiles() }
 
@@ -106,6 +107,9 @@ fun HomeScreen(
                                 contentDescription = if (darkMode) "Switch to light" else "Switch to dark"
                             )
                         }
+                    }
+                    IconButton(onClick = { onNavigate(Screen.Settings) }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -227,10 +231,12 @@ fun HomeScreen(
             }
         }
 
-        // AdMob banner at bottom of Home screen
-        BannerAd(
-            modifier = Modifier.fillMaxWidth()
-        )
+        // AdMob banner at bottom of Home screen (hidden if Pro)
+        if (!isPro) {
+            BannerAd(
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         }
     }
 }

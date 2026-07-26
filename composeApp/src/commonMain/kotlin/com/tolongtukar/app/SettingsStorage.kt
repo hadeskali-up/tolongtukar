@@ -18,4 +18,5 @@ object SettingsKeys {
     const val DARK_MODE = "dark_mode"
     const val UNIT_ORDER_PREFIX = "unit_order_"
     const val CATEGORY_ORDER = "category_order"
+    const val IS_PRO = "is_pro" // true = ads removed (purchased)
 }

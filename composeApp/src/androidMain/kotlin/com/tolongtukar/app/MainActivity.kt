@@ -14,6 +14,7 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         ContextHolder.context = applicationContext
+        ContextHolder.activity = this
         initKoin()
         enableEdgeToEdge()
 

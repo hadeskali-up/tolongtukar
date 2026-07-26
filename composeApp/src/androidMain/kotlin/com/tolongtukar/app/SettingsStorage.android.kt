@@ -28,4 +28,5 @@ actual class SettingsStorage {
  */
 object ContextHolder {
     lateinit var context: Context
+    var activity: android.app.Activity? = null
 }
