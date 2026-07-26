@@ -40,6 +40,11 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
 
+            // Ktor client for forex API calls
+            implementation("io.ktor:ktor-client-core:3.0.3")
+            implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
+
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
 
@@ -52,6 +57,11 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.activity.compose)
+            implementation("io.ktor:ktor-client-okhttp:3.0.3")
+        }
+
+        iosMain.dependencies {
+            implementation("io.ktor:ktor-client-darwin:3.0.3")
         }
     }
 }

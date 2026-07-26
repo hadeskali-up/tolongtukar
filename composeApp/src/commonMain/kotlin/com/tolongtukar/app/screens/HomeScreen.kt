@@ -1,9 +1,11 @@
 package com.tolongtukar.app.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
@@ -12,17 +14,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.tolongtukar.app.SettingsKeys
+import com.tolongtukar.app.SettingsStorage
 import com.tolongtukar.app.converter.UnitDefinitions
 import com.tolongtukar.app.navigation.Screen
 
 private data class CategoryTile(
     val categoryId: String,
     val name: String,
-    val icon: ImageVector
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,23 +39,64 @@ fun HomeScreen(
     darkMode: Boolean,
     followSystem: Boolean,
     onToggleDarkMode: (Boolean) -> Unit,
-    onToggleFollowSystem: (Boolean) -> Unit
+    onToggleFollowSystem: (Boolean) -> Unit,
+    settings: SettingsStorage
 ) {
-    val tiles = remember { buildCategoryTiles() }
+    val defaultTiles = remember { buildCategoryTiles() }
+
+    // Load saved category order
+    val savedOrderStr = remember { settings.getString(SettingsKeys.CATEGORY_ORDER, "") }
+    val initialOrder = remember {
+        if (savedOrderStr.isNotEmpty()) {
+            val saved = savedOrderStr.split(",").filter { it.isNotEmpty() }
+            val all = defaultTiles.map { it.categoryId }
+            val merged = saved.filter { it in all } + all.filter { it !in saved }
+            merged.mapNotNull { id -> defaultTiles.find { it.categoryId == id } }
+        } else {
+            defaultTiles
+        }
+    }
+
+    var tiles by remember { mutableStateOf(initialOrder) }
+    var editMode by remember { mutableStateOf(false) }
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+
+    fun saveOrder(order: List<String>) {
+        settings.putString(SettingsKeys.CATEGORY_ORDER, order.joinToString(","))
+    }
+
+    fun moveItem(from: Int, to: Int) {
+        if (from < 0 || to < 0 || from >= tiles.size || to >= tiles.size) return
+        val mutable = tiles.toMutableList()
+        val item = mutable.removeAt(from)
+        mutable.add(to, item)
+        tiles = mutable
+        saveOrder(mutable.map { it.categoryId })
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("TolongTukar", fontWeight = FontWeight.Bold) },
                 actions = {
+                    // Edit/reorder toggle
+                    IconButton(onClick = { editMode = !editMode }) {
+                        Icon(
+                            if (editMode) Icons.Default.Done else Icons.Default.Edit,
+                            contentDescription = if (editMode) "Done reordering" else "Reorder categories",
+                            tint = if (editMode) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // Theme toggle
                     if (followSystem) {
                         IconButton(onClick = { onToggleFollowSystem(false) }) {
                             Icon(Icons.Default.BrightnessAuto, contentDescription = "Follow system (tap to override)")
                         }
                     } else {
-                        IconButton(onClick = {
-                            onToggleDarkMode(!darkMode)
-                        }) {
+                        IconButton(onClick = { onToggleDarkMode(!darkMode) }) {
                             Icon(
                                 if (darkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
                                 contentDescription = if (darkMode) "Switch to light" else "Switch to dark"
@@ -63,8 +111,11 @@ fun HomeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
+        val density = LocalDensity.current
+        val columns = 3
+
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(columns),
             contentPadding = PaddingValues(
                 start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp
             ),
@@ -74,11 +125,59 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            items(tiles) { tile ->
+            itemsIndexed(tiles) { index, tile ->
+                val isDragging = draggingIndex == index
+
+                val dragModifier = if (editMode) {
+                    Modifier.pointerInput(tiles) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggingIndex = index
+                                dragOffsetX = 0f
+                                dragOffsetY = 0f
+                            },
+                            onDragEnd = { draggingIndex = null; dragOffsetX = 0f; dragOffsetY = 0f },
+                            onDragCancel = { draggingIndex = null; dragOffsetX = 0f; dragOffsetY = 0f },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffsetX += dragAmount.x
+                                dragOffsetY += dragAmount.y
+
+                                val itemWidth = with(density) { 120.dp.toPx() }
+                                val itemHeight = with(density) { 120.dp.toPx() }
+
+                                val deltaCol = (dragOffsetX / itemWidth).toInt()
+                                val deltaRow = (dragOffsetY / itemHeight).toInt()
+                                val delta = deltaRow * columns + deltaCol
+
+                                if (delta != 0) {
+                                    val target = index + delta
+                                    if (target in tiles.indices && target != index) {
+                                        moveItem(index, target)
+                                        draggingIndex = target
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                    }
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+
                 CategoryCard(
                     name = tile.name,
                     icon = tile.icon,
-                    onClick = { onNavigate(Screen.Converter(tile.categoryId)) }
+                    editMode = editMode,
+                    isDragging = isDragging,
+                    onClick = {
+                        if (!editMode) onNavigate(Screen.Converter(tile.categoryId))
+                    },
+                    modifier = dragModifier.then(
+                        if (isDragging) Modifier.graphicsLayer { alpha = 0.6f }
+                        else Modifier
+                    )
                 )
             }
         }
@@ -86,41 +185,67 @@ fun HomeScreen(
 }
 
 @Composable
-private fun CategoryCard(name: String, icon: ImageVector, onClick: () -> Unit) {
+private fun CategoryCard(
+    name: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    editMode: Boolean,
+    isDragging: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
         onClick = onClick,
-        modifier = Modifier
+        enabled = !editMode,
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isDragging)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = name,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                name,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                minLines = 1,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = name,
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    minLines = 1,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Drag handle in edit mode
+            if (editMode) {
+                Icon(
+                    Icons.Default.DragIndicator,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
         }
     }
 }

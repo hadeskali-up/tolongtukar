@@ -15,6 +15,7 @@ expect class SettingsStorage() {
  * App-wide settings keys.
  */
 object SettingsKeys {
-    const val DARK_MODE = "dark_mode"          // "true" / "false" / "system"
-    const val UNIT_ORDER_PREFIX = "unit_order_" // + categoryId = comma-separated unit IDs
+    const val DARK_MODE = "dark_mode"
+    const val UNIT_ORDER_PREFIX = "unit_order_"
+    const val CATEGORY_ORDER = "category_order"
 }

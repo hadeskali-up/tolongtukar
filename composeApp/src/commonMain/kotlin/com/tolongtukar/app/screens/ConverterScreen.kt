@@ -1,9 +1,11 @@
 package com.tolongtukar.app.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -13,7 +15,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -23,13 +29,16 @@ import com.tolongtukar.app.SettingsKeys
 import com.tolongtukar.app.SettingsStorage
 import com.tolongtukar.app.converter.ConversionEngine
 import com.tolongtukar.app.converter.CurrencyConverter
+import com.tolongtukar.app.converter.ForexService
 import com.tolongtukar.app.converter.UnitDefinitions
 import com.tolongtukar.app.converter.UnitDef
+import kotlinx.coroutines.launch
 
 /**
  * ConverterNOW-style screen: ALL units visible simultaneously as a list.
  * Type in any unit's text box → all other boxes update live.
- * Units can be reordered via up/down arrows; order persists across restarts.
+ * Long-press + drag any row to reorder. Order persists across restarts.
+ * For currency: fetches live rates from server on open.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +47,7 @@ fun ConverterScreen(
     onBack: () -> Unit,
     settings: SettingsStorage
 ) {
+    val scope = rememberCoroutineScope()
     val cat = remember(category) { UnitDefinitions.getCategory(category) }
     val isStringBased = remember(category) { cat?.isStringBased == true }
     val isCurrency = category == "currency"
@@ -50,7 +60,6 @@ fun ConverterScreen(
     val initialOrder = remember(category) {
         if (savedOrderStr.isNotEmpty()) {
             val saved = savedOrderStr.split(",").filter { it.isNotEmpty() }
-            // Merge: saved order first, then any new units not in saved
             val all = cat?.units?.map { it.id } ?: emptyList()
             val merged = saved.filter { it in all } + all.filter { it !in saved }
             merged
@@ -59,27 +68,34 @@ fun ConverterScreen(
         }
     }
 
-    // Mutable order (can be rearranged)
     var unitOrder by remember(category) { mutableStateOf(initialOrder) }
-
-    // Map of unitId → text shown in that unit's text box
     var values by remember(category) { mutableStateOf<Map<String, String>>(emptyMap()) }
     var activeUnitId by remember(category) { mutableStateOf(unitOrder.firstOrNull() ?: "") }
     var editMode by remember { mutableStateOf(false) }
+    var currencyTimestamp by remember { mutableStateOf(CurrencyConverter.getLastUpdated()) }
 
-    fun saveOrder(order: List<String>) {
-        settings.putString(SettingsKeys.UNIT_ORDER_PREFIX + category, order.joinToString(","))
-    }
+    // Drag state
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val listState = rememberLazyListState()
 
-    fun moveUnit(index: Int, direction: Int) {
-        val newIndex = index + direction
-        if (newIndex < 0 || newIndex >= unitOrder.size) return
-        val mutable = unitOrder.toMutableList()
-        val temp = mutable[index]
-        mutable[index] = mutable[newIndex]
-        mutable[newIndex] = temp
-        unitOrder = mutable
-        saveOrder(mutable)
+    // For currency: fetch live rates from server on screen open
+    LaunchedEffect(category) {
+        if (isCurrency) {
+            scope.launch {
+                val ts = ForexService.updateRates()
+                if (ts != null) {
+                    currencyTimestamp = ts
+                    // Refresh values with new rates
+                    if (activeUnitId.isNotEmpty()) {
+                        val input = values[activeUnitId] ?: "1"
+                        val numVal = input.toDoubleOrNull() ?: 1.0
+                        val results = ConversionEngine.convertToAll("currency", activeUnitId, numVal)
+                        values = results.toMutableMap().apply { put(activeUnitId, input) }
+                    }
+                }
+            }
+        }
     }
 
     // Initialize: set first unit to "1", rest computed
@@ -93,6 +109,10 @@ fun ConverterScreen(
                 values = ConversionEngine.convertToAll(cat!!.id, firstUnitId, 1.0)
             }
         }
+    }
+
+    fun saveOrder(order: List<String>) {
+        settings.putString(SettingsKeys.UNIT_ORDER_PREFIX + category, order.joinToString(","))
     }
 
     fun onUnitInput(unitId: String, input: String) {
@@ -115,6 +135,15 @@ fun ConverterScreen(
         }
     }
 
+    fun moveItem(from: Int, to: Int) {
+        if (from < 0 || to < 0 || from >= unitOrder.size || to >= unitOrder.size) return
+        val mutable = unitOrder.toMutableList()
+        val item = mutable.removeAt(from)
+        mutable.add(to, item)
+        unitOrder = mutable
+        saveOrder(mutable)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -125,7 +154,6 @@ fun ConverterScreen(
                     }
                 },
                 actions = {
-                    // Edit/reorder toggle
                     if (unitOrder.size > 1) {
                         IconButton(onClick = { editMode = !editMode }) {
                             Icon(
@@ -154,7 +182,10 @@ fun ConverterScreen(
             return@Scaffold
         }
 
+        val density = LocalDensity.current
+
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -169,7 +200,7 @@ fun ConverterScreen(
             if (isCurrency) {
                 item {
                     Text(
-                        text = "Last updated: ${CurrencyConverter.lastUpdated}",
+                        text = "Last updated: $currencyTimestamp",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
@@ -185,6 +216,37 @@ fun ConverterScreen(
                 if (unit != null) {
                     val unitValue = values[unitId] ?: ""
                     val isActive = unitId == activeUnitId
+                    val isDragging = draggingIndex == index
+
+                    // Drag gesture for reordering
+                    val dragModifier = if (editMode) {
+                        Modifier.pointerInput(unitOrder) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { draggingIndex = index },
+                                onDragEnd = { draggingIndex = null; dragOffset = 0f },
+                                onDragCancel = { draggingIndex = null; dragOffset = 0f },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffset += dragAmount.y
+
+                                    // Calculate target index based on accumulated drag
+                                    val itemHeight = with(density) { 72.dp.toPx() }
+                                    val delta = (dragOffset / itemHeight).toInt()
+
+                                    if (delta != 0) {
+                                        val target = index + delta
+                                        if (target in unitOrder.indices && target != index) {
+                                            moveItem(index, target)
+                                            draggingIndex = target
+                                            dragOffset = 0f
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
 
                     UnitRow(
                         unitName = unit.name,
@@ -193,11 +255,13 @@ fun ConverterScreen(
                         isActive = isActive,
                         isStringBased = isStringBased,
                         editMode = editMode,
-                        canMoveUp = index > 0,
-                        canMoveDown = index < unitOrder.size - 1,
-                        onValueChange = { onUnitInput(unitId, it) },
-                        onMoveUp = { moveUnit(index, -1) },
-                        onMoveDown = { moveUnit(index, 1) }
+                        isDragging = isDragging,
+                        modifier = dragModifier
+                            .then(
+                                if (isDragging) Modifier.graphicsLayer { alpha = 0.6f }
+                                else Modifier
+                            ),
+                        onValueChange = { onUnitInput(unitId, it) }
                     )
                 }
             }
@@ -213,52 +277,32 @@ private fun UnitRow(
     isActive: Boolean,
     isStringBased: Boolean,
     editMode: Boolean,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onValueChange: (String) -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit
+    isDragging: Boolean,
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .height(68.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(
-                if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                else if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
             )
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Reorder controls (only visible in edit mode)
+        // Drag handle (visible in edit mode)
         if (editMode) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                IconButton(
-                    onClick = onMoveUp,
-                    enabled = canMoveUp,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Move up",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(
-                    onClick = onMoveDown,
-                    enabled = canMoveDown,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Move down",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            Icon(
+                Icons.Default.DragIndicator,
+                contentDescription = "Drag to reorder",
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         // Unit name + symbol

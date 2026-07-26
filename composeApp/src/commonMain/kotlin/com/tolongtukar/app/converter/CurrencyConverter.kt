@@ -1,23 +1,23 @@
 package com.tolongtukar.app.converter
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
 /**
- * Currency conversion with hardcoded fallback rates (USD-based).
- * Approximate 2024 rates. Can be updated later with a live API.
+ * Currency conversion with server-updated rates (USD-based).
+ * Static fallback rates used when offline. Server updates daily at 6AM.
  *
- * Each currency has a rate relative to USD (how many units = 1 USD).
- * Conversion: amount_in_target = amount_in_source × (usd_rate_target / usd_rate_source)
+ * rate = "how many units = 1 USD" (e.g. MYR rate 4.09 means 1 USD = 4.09 MYR)
+ * factor = 1 / rate (how many USD = 1 unit of this currency)
  */
 object CurrencyConverter {
 
-    // When these rates were last updated
-    val lastUpdated: String = "Jul 2024 (offline rates)"
-
-    // Rate = how many units of this currency = 1 USD
-    private val rates: Map<String, Double> = mapOf(
+    // Mutable — updated by ForexService when server rates are fetched
+    private var rates: Map<String, Double> = mapOf(
         "USD" to 1.0,
-        "EUR" to 0.92,
-        "JPY" to 149.50,
-        "GBP" to 0.79,
+        "EUR" to 0.8788,
+        "JPY" to 163.81,
+        "GBP" to 0.7507,
         "CNY" to 7.24,
         "AUD" to 1.52,
         "CAD" to 1.36,
@@ -34,17 +34,21 @@ object CurrencyConverter {
         "PLN" to 4.05,
         "CZK" to 23.10,
         "HUF" to 360.0,
-        "RON" to 4.55,
         "IDR" to 15850.0,
         "THB" to 35.80,
         "PHP" to 56.20,
-        "MYR" to 4.68,
+        "MYR" to 4.0909,
         "HKD" to 7.82,
         "SGD" to 1.34,
         "NZD" to 1.66,
-        "ILS" to 3.78,
-        "ISK" to 138.0
+        "AED" to 3.67,
+        "SAR" to 3.75,
+        "PKR" to 278.0
     )
+
+    private var lastUpdated: String = "Offline (static rates)"
+
+    private val mutex = Mutex()
 
     private val currencyNames: Map<String, String> = mapOf(
         "USD" to "US Dollar",
@@ -67,7 +71,6 @@ object CurrencyConverter {
         "PLN" to "Polish Zloty",
         "CZK" to "Czech Koruna",
         "HUF" to "Hungarian Forint",
-        "RON" to "Romanian Leu",
         "IDR" to "Indonesian Rupiah",
         "THB" to "Thai Baht",
         "PHP" to "Philippine Peso",
@@ -75,15 +78,33 @@ object CurrencyConverter {
         "HKD" to "Hong Kong Dollar",
         "SGD" to "Singapore Dollar",
         "NZD" to "New Zealand Dollar",
-        "ILS" to "Israeli Shekel",
-        "ISK" to "Icelandic Krona"
+        "AED" to "UAE Dirham",
+        "SAR" to "Saudi Riyal",
+        "PKR" to "Pakistani Rupee"
     )
+
+    fun getLastUpdated(): String = lastUpdated
+
+    /**
+     * Update rates from server data. Called by ForexService.
+     */
+    suspend fun updateRates(newRates: Map<String, Double>, timestamp: String) {
+        mutex.withLock {
+            // Only update currencies we know about (merge: keep names, replace rates)
+            val merged = rates.toMutableMap()
+            for ((code, rate) in newRates) {
+                if (currencyNames.containsKey(code) || code in rates) {
+                    merged[code] = rate
+                }
+            }
+            rates = merged
+            lastUpdated = timestamp
+        }
+    }
 
     /**
      * Build UnitDef list for the Currency category.
-     * rate = "how many units = 1 USD" (e.g. MYR rate 4.68 means 1 USD = 4.68 MYR).
-     * FactorStrategy factor = "how many base units (USD) = 1 of this currency".
-     * So factor = 1 / rate. (1 MYR = 1/4.68 = 0.2137 USD)
+     * factor = 1 / rate (how many USD = 1 of this currency)
      */
     fun currencyUnits(): List<UnitDef> {
         return rates.entries.sortedBy { it.key }.map { (code, rate) ->
@@ -96,9 +117,6 @@ object CurrencyConverter {
         }
     }
 
-    /**
-     * Convert [amount] from [fromCurrency] to [toCurrency].
-     */
     fun convert(amount: Double, fromCurrency: String, toCurrency: String): Double {
         val fromRate = rates[fromCurrency] ?: return 0.0
         val toRate = rates[toCurrency] ?: return 0.0

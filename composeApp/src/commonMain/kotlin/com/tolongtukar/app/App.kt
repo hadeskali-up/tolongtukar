@@ -56,7 +56,8 @@ fun App() {
                 onToggleFollowSystem = { fs ->
                     followSystem = fs
                     settings.putString(SettingsKeys.DARK_MODE, if (fs) "system" else if (darkMode) "true" else "false")
-                }
+                },
+                settings = settings
             )
             is Screen.Converter -> {
                 val category = (currentScreen as Screen.Converter).category
