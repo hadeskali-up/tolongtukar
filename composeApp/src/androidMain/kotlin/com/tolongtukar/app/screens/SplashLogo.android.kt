@@ -8,7 +8,7 @@ import androidx.compose.ui.res.painterResource
 import com.tolongtukar.app.R
 
 @Composable
-actual fun SplashLogo(modifier: Modifier = Modifier) {
+actual fun SplashLogo(modifier: Modifier) {
     Image(
         painter = painterResource(R.mipmap.ic_launcher_foreground),
         contentDescription = "TolongTukar",

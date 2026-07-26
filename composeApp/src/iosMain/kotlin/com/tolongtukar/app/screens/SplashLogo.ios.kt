@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-actual fun SplashLogo(modifier: Modifier = Modifier) {
+actual fun SplashLogo(modifier: Modifier) {
     // iOS: placeholder until native icon asset is added to bundle
     Box(
         modifier = modifier,
