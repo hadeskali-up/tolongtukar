@@ -1,6 +1,8 @@
 package com.tolongtukar.app.screens
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -14,7 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,7 +62,6 @@ fun HomeScreen(
     var tiles by remember { mutableStateOf(initialOrder) }
     var editMode by remember { mutableStateOf(false) }
 
-    // Drag state — track by ITEM ID (stable), not index
     var draggingTileId by remember { mutableStateOf<String?>(null) }
     var dragOffsetX by remember { mutableFloatStateOf(0f) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
@@ -130,7 +131,32 @@ fun HomeScreen(
             itemsIndexed(tiles, key = { _, tile -> tile.categoryId }) { index, tile ->
                 val isDragging = draggingTileId == tile.categoryId
 
-                // CRITICAL: pointerInput key = categoryId (stable, won't restart on list change)
+                // --- SPRING ANIMATIONS ---
+                val animScale by animateFloatAsState(
+                    targetValue = if (isDragging) 1.1f else 1.0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "scale"
+                )
+                val animShadow by animateFloatAsState(
+                    targetValue = if (isDragging) 16f else 0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "shadow"
+                )
+                val animAlpha by animateFloatAsState(
+                    targetValue = if (isDragging) 0.7f else 1.0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "alpha"
+                )
+
                 val dragModifier = if (editMode) {
                     Modifier.pointerInput(tile.categoryId) {
                         detectDragGesturesAfterLongPress(
@@ -154,7 +180,6 @@ fun HomeScreen(
                                 dragOffsetX += dragAmount.x
                                 dragOffsetY += dragAmount.y
 
-                                // Look up CURRENT index dynamically
                                 val currentIdx = tiles.indexOf(tile)
                                 if (currentIdx < 0) return@detectDragGesturesAfterLongPress
 
@@ -166,7 +191,6 @@ fun HomeScreen(
                                     val target = currentIdx + delta
                                     if (target in tiles.indices && target != currentIdx) {
                                         moveItem(currentIdx, target)
-                                        // Subtract consumed amount — keep residual for smooth continued drag
                                         val consumedCol = deltaCol * tileWidthPx
                                         val consumedRow = deltaRow * tileHeightPx
                                         dragOffsetX -= consumedCol
@@ -185,13 +209,14 @@ fun HomeScreen(
                     icon = tile.icon,
                     editMode = editMode,
                     isDragging = isDragging,
+                    animScale = animScale,
+                    animShadow = animShadow,
+                    animAlpha = animAlpha,
                     onClick = {
                         if (!editMode) onNavigate(Screen.Converter(tile.categoryId))
                     },
-                    modifier = dragModifier.then(
-                        if (isDragging) Modifier.graphicsLayer { alpha = 0.6f }
-                        else Modifier
-                    )
+                    modifier = dragModifier
+                        .then(Modifier.animateItem())
                 )
             }
         }
@@ -204,6 +229,9 @@ private fun CategoryCard(
     icon: ImageVector,
     editMode: Boolean,
     isDragging: Boolean,
+    animScale: Float,
+    animShadow: Float,
+    animAlpha: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -212,7 +240,13 @@ private fun CategoryCard(
         enabled = !editMode,
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1f),
+            .aspectRatio(1f)
+            .shadow(animShadow.dp, RoundedCornerShape(16.dp))
+            .graphicsLayer {
+                scaleX = animScale
+                scaleY = animScale
+                alpha = animAlpha
+            },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isDragging)

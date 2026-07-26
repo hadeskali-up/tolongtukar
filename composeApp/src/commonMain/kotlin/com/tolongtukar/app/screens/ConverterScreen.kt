@@ -1,5 +1,8 @@
 package com.tolongtukar.app.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
@@ -15,8 +18,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -35,8 +38,7 @@ import kotlinx.coroutines.launch
 
 /**
  * All units visible simultaneously as a list with text boxes.
- * Type in any unit → all others update live.
- * Long-press + drag any row to reorder freely. Order persists.
+ * Long-press + drag any row to reorder. Spring animations on drag.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,13 +73,11 @@ fun ConverterScreen(
     var editMode by remember { mutableStateOf(false) }
     var currencyTimestamp by remember { mutableStateOf(CurrencyConverter.getLastUpdated()) }
 
-    // Drag state — track by ITEM ID (stable), not index
     var draggingItemId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
-    // For currency: fetch live rates from server
     LaunchedEffect(category) {
         if (isCurrency) {
             scope.launch {
@@ -95,7 +95,6 @@ fun ConverterScreen(
         }
     }
 
-    // Initialize: set first unit to "1", rest computed
     LaunchedEffect(category) {
         if (unitOrder.isNotEmpty()) {
             activeUnitId = unitOrder.first()
@@ -115,12 +114,10 @@ fun ConverterScreen(
     fun onUnitInput(unitId: String, input: String) {
         activeUnitId = unitId
         if (cat == null) return
-
         if (input.isBlank()) {
             values = unitOrder.associate { it to "" }
             return
         }
-
         if (isStringBased) {
             val results = ConversionEngine.convertStringToAll(cat.id, unitId, input)
             values = results.toMutableMap().apply { put(unitId, input) }
@@ -214,7 +211,35 @@ fun ConverterScreen(
                     val isActive = unitId == activeUnitId
                     val isDragging = draggingItemId == unitId
 
-                    // CRITICAL: pointerInput key = unitId (stable, won't restart on list change)
+                    // --- SPRING ANIMATIONS ---
+                    // Scale: 1.0 → 1.06 when picked up, spring back on drop
+                    val animScale by animateFloatAsState(
+                        targetValue = if (isDragging) 1.06f else 1.0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "scale"
+                    )
+                    // Shadow: 0dp → 12dp when dragging
+                    val animShadow by animateFloatAsState(
+                        targetValue = if (isDragging) 12f else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessLow
+                        ),
+                        label = "shadow"
+                    )
+                    // Alpha: 1.0 → 0.7 when dragging
+                    val animAlpha by animateFloatAsState(
+                        targetValue = if (isDragging) 0.7f else 1.0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "alpha"
+                    )
+
                     val dragModifier = if (editMode) {
                         Modifier.pointerInput(unitId) {
                             detectDragGesturesAfterLongPress(
@@ -234,7 +259,6 @@ fun ConverterScreen(
                                     change.consume()
                                     dragOffsetY += dragAmount.y
 
-                                    // Look up CURRENT index dynamically (item may have moved)
                                     val currentIdx = unitOrder.indexOf(unitId)
                                     if (currentIdx < 0) return@detectDragGesturesAfterLongPress
 
@@ -244,7 +268,6 @@ fun ConverterScreen(
                                         val target = currentIdx + delta
                                         if (target in unitOrder.indices && target != currentIdx) {
                                             moveItem(currentIdx, target)
-                                            // Subtract consumed amount — keep residual offset for smooth continued drag
                                             dragOffsetY -= delta * itemHeightPx
                                         }
                                     }
@@ -263,11 +286,12 @@ fun ConverterScreen(
                         isStringBased = isStringBased,
                         editMode = editMode,
                         isDragging = isDragging,
+                        animScale = animScale,
+                        animShadow = animShadow,
+                        animAlpha = animAlpha,
                         modifier = dragModifier
-                            .then(
-                                if (isDragging) Modifier.graphicsLayer { alpha = 0.6f }
-                                else Modifier
-                            ),
+                            // animateItem = other rows slide smoothly during reorder
+                            .then(Modifier.animateItem()),
                         onValueChange = { onUnitInput(unitId, it) }
                     )
                 }
@@ -285,6 +309,9 @@ private fun UnitRow(
     isStringBased: Boolean,
     editMode: Boolean,
     isDragging: Boolean,
+    animScale: Float,
+    animShadow: Float,
+    animAlpha: Float,
     modifier: Modifier = Modifier,
     onValueChange: (String) -> Unit
 ) {
@@ -292,12 +319,19 @@ private fun UnitRow(
         modifier = modifier
             .fillMaxWidth()
             .height(68.dp)
+            .shadow(animShadow.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(
-                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                 else if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
             )
+            // Spring scale + alpha via graphicsLayer
+            .graphicsLayer {
+                scaleX = animScale
+                scaleY = animScale
+                alpha = animAlpha
+            }
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
