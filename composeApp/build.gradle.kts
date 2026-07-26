@@ -59,6 +59,8 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.splashscreen)
             implementation("io.ktor:ktor-client-okhttp:3.0.3")
+            // Google AdMob
+            implementation("com.google.android.gms:play-services-ads:23.3.0")
         }
 
         iosMain.dependencies {

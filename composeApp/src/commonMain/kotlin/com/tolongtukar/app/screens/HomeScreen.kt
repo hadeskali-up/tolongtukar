@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tolongtukar.app.SettingsKeys
 import com.tolongtukar.app.SettingsStorage
+import com.tolongtukar.app.ads.BannerAd
 import com.tolongtukar.app.converter.UnitDefinitions
 import com.tolongtukar.app.navigation.Screen
 
@@ -117,6 +118,11 @@ fun HomeScreen(
         val tileWidthPx = with(density) { 120.dp.toPx() }
         val tileHeightPx = with(density) { 120.dp.toPx() }
 
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             contentPadding = PaddingValues(
@@ -125,8 +131,8 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+                .fillMaxWidth()
+                .weight(1f)
         ) {
             itemsIndexed(tiles, key = { _, tile -> tile.categoryId }) { index, tile ->
                 val isDragging = draggingTileId == tile.categoryId
@@ -219,6 +225,12 @@ fun HomeScreen(
                         .then(Modifier.animateItem())
                 )
             }
+        }
+
+        // AdMob banner at bottom of Home screen
+        BannerAd(
+            modifier = Modifier.fillMaxWidth()
+        )
         }
     }
 }
