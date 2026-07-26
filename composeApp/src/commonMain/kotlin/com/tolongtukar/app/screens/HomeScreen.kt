@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -29,7 +30,7 @@ import com.tolongtukar.app.navigation.Screen
 private data class CategoryTile(
     val categoryId: String,
     val name: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector
+    val icon: ImageVector
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,7 +45,6 @@ fun HomeScreen(
 ) {
     val defaultTiles = remember { buildCategoryTiles() }
 
-    // Load saved category order
     val savedOrderStr = remember { settings.getString(SettingsKeys.CATEGORY_ORDER, "") }
     val initialOrder = remember {
         if (savedOrderStr.isNotEmpty()) {
@@ -59,16 +59,20 @@ fun HomeScreen(
 
     var tiles by remember { mutableStateOf(initialOrder) }
     var editMode by remember { mutableStateOf(false) }
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+
+    // Drag state — track by ITEM ID (stable), not index
+    var draggingTileId by remember { mutableStateOf<String?>(null) }
     var dragOffsetX by remember { mutableFloatStateOf(0f) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val columns = 3
 
     fun saveOrder(order: List<String>) {
         settings.putString(SettingsKeys.CATEGORY_ORDER, order.joinToString(","))
     }
 
     fun moveItem(from: Int, to: Int) {
-        if (from < 0 || to < 0 || from >= tiles.size || to >= tiles.size) return
+        if (from < 0 || to < 0 || from >= tiles.size || to >= tiles.size || from == to) return
         val mutable = tiles.toMutableList()
         val item = mutable.removeAt(from)
         mutable.add(to, item)
@@ -81,7 +85,6 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("TolongTukar", fontWeight = FontWeight.Bold) },
                 actions = {
-                    // Edit/reorder toggle
                     IconButton(onClick = { editMode = !editMode }) {
                         Icon(
                             if (editMode) Icons.Default.Done else Icons.Default.Edit,
@@ -90,7 +93,6 @@ fun HomeScreen(
                                    else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // Theme toggle
                     if (followSystem) {
                         IconButton(onClick = { onToggleFollowSystem(false) }) {
                             Icon(Icons.Default.BrightnessAuto, contentDescription = "Follow system (tap to override)")
@@ -111,8 +113,8 @@ fun HomeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        val density = LocalDensity.current
-        val columns = 3
+        val tileWidthPx = with(density) { 120.dp.toPx() }
+        val tileHeightPx = with(density) { 120.dp.toPx() }
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
@@ -125,38 +127,50 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            itemsIndexed(tiles) { index, tile ->
-                val isDragging = draggingIndex == index
+            itemsIndexed(tiles, key = { _, tile -> tile.categoryId }) { index, tile ->
+                val isDragging = draggingTileId == tile.categoryId
 
+                // CRITICAL: pointerInput key = categoryId (stable, won't restart on list change)
                 val dragModifier = if (editMode) {
-                    Modifier.pointerInput(tiles) {
+                    Modifier.pointerInput(tile.categoryId) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
-                                draggingIndex = index
+                                draggingTileId = tile.categoryId
                                 dragOffsetX = 0f
                                 dragOffsetY = 0f
                             },
-                            onDragEnd = { draggingIndex = null; dragOffsetX = 0f; dragOffsetY = 0f },
-                            onDragCancel = { draggingIndex = null; dragOffsetX = 0f; dragOffsetY = 0f },
+                            onDragEnd = {
+                                draggingTileId = null
+                                dragOffsetX = 0f
+                                dragOffsetY = 0f
+                            },
+                            onDragCancel = {
+                                draggingTileId = null
+                                dragOffsetX = 0f
+                                dragOffsetY = 0f
+                            },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 dragOffsetX += dragAmount.x
                                 dragOffsetY += dragAmount.y
 
-                                val itemWidth = with(density) { 120.dp.toPx() }
-                                val itemHeight = with(density) { 120.dp.toPx() }
+                                // Look up CURRENT index dynamically
+                                val currentIdx = tiles.indexOf(tile)
+                                if (currentIdx < 0) return@detectDragGesturesAfterLongPress
 
-                                val deltaCol = (dragOffsetX / itemWidth).toInt()
-                                val deltaRow = (dragOffsetY / itemHeight).toInt()
+                                val deltaCol = (dragOffsetX / tileWidthPx).toInt()
+                                val deltaRow = (dragOffsetY / tileHeightPx).toInt()
                                 val delta = deltaRow * columns + deltaCol
 
                                 if (delta != 0) {
-                                    val target = index + delta
-                                    if (target in tiles.indices && target != index) {
-                                        moveItem(index, target)
-                                        draggingIndex = target
-                                        dragOffsetX = 0f
-                                        dragOffsetY = 0f
+                                    val target = currentIdx + delta
+                                    if (target in tiles.indices && target != currentIdx) {
+                                        moveItem(currentIdx, target)
+                                        // Subtract consumed amount — keep residual for smooth continued drag
+                                        val consumedCol = deltaCol * tileWidthPx
+                                        val consumedRow = deltaRow * tileHeightPx
+                                        dragOffsetX -= consumedCol
+                                        dragOffsetY -= consumedRow
                                     }
                                 }
                             }
@@ -187,7 +201,7 @@ fun HomeScreen(
 @Composable
 private fun CategoryCard(
     name: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     editMode: Boolean,
     isDragging: Boolean,
     onClick: () -> Unit,
@@ -234,7 +248,6 @@ private fun CategoryCard(
                 )
             }
 
-            // Drag handle in edit mode
             if (editMode) {
                 Icon(
                     Icons.Default.DragIndicator,

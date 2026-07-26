@@ -31,14 +31,12 @@ import com.tolongtukar.app.converter.ConversionEngine
 import com.tolongtukar.app.converter.CurrencyConverter
 import com.tolongtukar.app.converter.ForexService
 import com.tolongtukar.app.converter.UnitDefinitions
-import com.tolongtukar.app.converter.UnitDef
 import kotlinx.coroutines.launch
 
 /**
- * ConverterNOW-style screen: ALL units visible simultaneously as a list.
- * Type in any unit's text box → all other boxes update live.
- * Long-press + drag any row to reorder. Order persists across restarts.
- * For currency: fetches live rates from server on open.
+ * All units visible simultaneously as a list with text boxes.
+ * Type in any unit → all others update live.
+ * Long-press + drag any row to reorder freely. Order persists.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +50,6 @@ fun ConverterScreen(
     val isStringBased = remember(category) { cat?.isStringBased == true }
     val isCurrency = category == "currency"
 
-    // Load saved unit order, or use default
     val defaultOrder = remember(category) { cat?.units?.map { it.id } ?: emptyList() }
     val savedOrderStr = remember(category) {
         settings.getString(SettingsKeys.UNIT_ORDER_PREFIX + category, "")
@@ -74,19 +71,19 @@ fun ConverterScreen(
     var editMode by remember { mutableStateOf(false) }
     var currencyTimestamp by remember { mutableStateOf(CurrencyConverter.getLastUpdated()) }
 
-    // Drag state
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    // Drag state — track by ITEM ID (stable), not index
+    var draggingItemId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
     val listState = rememberLazyListState()
+    val density = LocalDensity.current
 
-    // For currency: fetch live rates from server on screen open
+    // For currency: fetch live rates from server
     LaunchedEffect(category) {
         if (isCurrency) {
             scope.launch {
                 val ts = ForexService.updateRates()
                 if (ts != null) {
                     currencyTimestamp = ts
-                    // Refresh values with new rates
                     if (activeUnitId.isNotEmpty()) {
                         val input = values[activeUnitId] ?: "1"
                         val numVal = input.toDoubleOrNull() ?: 1.0
@@ -136,7 +133,7 @@ fun ConverterScreen(
     }
 
     fun moveItem(from: Int, to: Int) {
-        if (from < 0 || to < 0 || from >= unitOrder.size || to >= unitOrder.size) return
+        if (from < 0 || to < 0 || from >= unitOrder.size || to >= unitOrder.size || from == to) return
         val mutable = unitOrder.toMutableList()
         val item = mutable.removeAt(from)
         mutable.add(to, item)
@@ -182,7 +179,7 @@ fun ConverterScreen(
             return@Scaffold
         }
 
-        val density = LocalDensity.current
+        val itemHeightPx = with(density) { 72.dp.toPx() }
 
         LazyColumn(
             state = listState,
@@ -196,7 +193,6 @@ fun ConverterScreen(
                 bottom = 12.dp
             )
         ) {
-            // Currency: show last-updated timestamp at top
             if (isCurrency) {
                 item {
                     Text(
@@ -211,34 +207,45 @@ fun ConverterScreen(
                 }
             }
 
-            itemsIndexed(unitOrder) { index, unitId ->
+            itemsIndexed(unitOrder, key = { _, id -> id }) { index, unitId ->
                 val unit = cat?.units?.find { it.id == unitId }
                 if (unit != null) {
                     val unitValue = values[unitId] ?: ""
                     val isActive = unitId == activeUnitId
-                    val isDragging = draggingIndex == index
+                    val isDragging = draggingItemId == unitId
 
-                    // Drag gesture for reordering
+                    // CRITICAL: pointerInput key = unitId (stable, won't restart on list change)
                     val dragModifier = if (editMode) {
-                        Modifier.pointerInput(unitOrder) {
+                        Modifier.pointerInput(unitId) {
                             detectDragGesturesAfterLongPress(
-                                onDragStart = { draggingIndex = index },
-                                onDragEnd = { draggingIndex = null; dragOffset = 0f },
-                                onDragCancel = { draggingIndex = null; dragOffset = 0f },
+                                onDragStart = {
+                                    draggingItemId = unitId
+                                    dragOffsetY = 0f
+                                },
+                                onDragEnd = {
+                                    draggingItemId = null
+                                    dragOffsetY = 0f
+                                },
+                                onDragCancel = {
+                                    draggingItemId = null
+                                    dragOffsetY = 0f
+                                },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    dragOffset += dragAmount.y
+                                    dragOffsetY += dragAmount.y
 
-                                    // Calculate target index based on accumulated drag
-                                    val itemHeight = with(density) { 72.dp.toPx() }
-                                    val delta = (dragOffset / itemHeight).toInt()
+                                    // Look up CURRENT index dynamically (item may have moved)
+                                    val currentIdx = unitOrder.indexOf(unitId)
+                                    if (currentIdx < 0) return@detectDragGesturesAfterLongPress
+
+                                    val delta = (dragOffsetY / itemHeightPx).toInt()
 
                                     if (delta != 0) {
-                                        val target = index + delta
-                                        if (target in unitOrder.indices && target != index) {
-                                            moveItem(index, target)
-                                            draggingIndex = target
-                                            dragOffset = 0f
+                                        val target = currentIdx + delta
+                                        if (target in unitOrder.indices && target != currentIdx) {
+                                            moveItem(currentIdx, target)
+                                            // Subtract consumed amount — keep residual offset for smooth continued drag
+                                            dragOffsetY -= delta * itemHeightPx
                                         }
                                     }
                                 }
@@ -295,7 +302,6 @@ private fun UnitRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Drag handle (visible in edit mode)
         if (editMode) {
             Icon(
                 Icons.Default.DragIndicator,
@@ -305,7 +311,6 @@ private fun UnitRow(
             )
         }
 
-        // Unit name + symbol
         Column(
             modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.Start
@@ -326,7 +331,6 @@ private fun UnitRow(
             }
         }
 
-        // Text box
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
