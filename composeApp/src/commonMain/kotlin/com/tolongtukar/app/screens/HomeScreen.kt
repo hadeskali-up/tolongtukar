@@ -28,6 +28,8 @@ import com.tolongtukar.app.SettingsKeys
 import com.tolongtukar.app.SettingsStorage
 import com.tolongtukar.app.ads.BannerAd
 import com.tolongtukar.app.converter.UnitDefinitions
+import com.tolongtukar.app.i18n.I18n
+import com.tolongtukar.app.i18n.LocalStrings
 import com.tolongtukar.app.navigation.Screen
 
 private data class CategoryTile(
@@ -47,6 +49,7 @@ fun HomeScreen(
     settings: SettingsStorage,
     isPro: Boolean = false
 ) {
+    val strings = LocalStrings.current
     val defaultTiles = remember { buildCategoryTiles() }
 
     val savedOrderStr = remember { settings.getString(SettingsKeys.CATEGORY_ORDER, "") }
@@ -86,12 +89,12 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TolongTukar", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.appName, fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { editMode = !editMode }) {
                         Icon(
                             if (editMode) Icons.Default.Done else Icons.Default.Edit,
-                            contentDescription = if (editMode) "Done reordering" else "Reorder categories",
+                            contentDescription = if (editMode) strings.done else strings.reorderCategories,
                             tint = if (editMode) MaterialTheme.colorScheme.primary
                                    else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -215,7 +218,7 @@ fun HomeScreen(
                 }
 
                 CategoryCard(
-                    name = tile.name,
+                    name = I18n.categoryName(strings, tile.categoryId, tile.name),
                     icon = tile.icon,
                     editMode = editMode,
                     isDragging = isDragging,

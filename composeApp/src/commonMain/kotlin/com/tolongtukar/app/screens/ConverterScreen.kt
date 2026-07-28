@@ -34,6 +34,8 @@ import com.tolongtukar.app.converter.ConversionEngine
 import com.tolongtukar.app.converter.CurrencyConverter
 import com.tolongtukar.app.converter.ForexService
 import com.tolongtukar.app.converter.UnitDefinitions
+import com.tolongtukar.app.i18n.I18n
+import com.tolongtukar.app.i18n.LocalStrings
 import kotlinx.coroutines.launch
 
 /**
@@ -47,6 +49,7 @@ fun ConverterScreen(
     onBack: () -> Unit,
     settings: SettingsStorage
 ) {
+    val strings = LocalStrings.current
     val scope = rememberCoroutineScope()
     val cat = remember(category) { UnitDefinitions.getCategory(category) }
     val isStringBased = remember(category) { cat?.isStringBased == true }
@@ -78,32 +81,33 @@ fun ConverterScreen(
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
+    // Fetch live forex rates on entry. Only recompute if the user has already
+    // typed a value — never inject a prefilled "1".
     LaunchedEffect(category) {
         if (isCurrency) {
             scope.launch {
                 val ts = ForexService.updateRates()
                 if (ts != null) {
                     currencyTimestamp = ts
-                    if (activeUnitId.isNotEmpty()) {
-                        val input = values[activeUnitId] ?: "1"
-                        val numVal = input.toDoubleOrNull() ?: 1.0
-                        val results = ConversionEngine.convertToAll("currency", activeUnitId, numVal)
-                        values = results.toMutableMap().apply { put(activeUnitId, input) }
+                    val input = values[activeUnitId]
+                    if (activeUnitId.isNotEmpty() && !input.isNullOrBlank()) {
+                        val numVal = input.toDoubleOrNull()
+                        if (numVal != null) {
+                            val results = ConversionEngine.convertToAll("currency", activeUnitId, numVal)
+                            values = results.toMutableMap().apply { put(activeUnitId, input) }
+                        }
                     }
                 }
             }
         }
     }
 
+    // Start with the first unit active and ALL fields empty (hint text shows instead
+    // of prefilled data). User types into any field to drive the conversion.
     LaunchedEffect(category) {
         if (unitOrder.isNotEmpty()) {
             activeUnitId = unitOrder.first()
-            val firstUnitId = unitOrder.first()
-            if (isStringBased) {
-                values = ConversionEngine.convertStringToAll(cat!!.id, firstUnitId, "1")
-            } else {
-                values = ConversionEngine.convertToAll(cat!!.id, firstUnitId, 1.0)
-            }
+            values = unitOrder.associateWith { "" }
         }
     }
 
@@ -141,10 +145,15 @@ fun ConverterScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(cat?.name ?: "Converter", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        I18n.categoryName(strings, category, cat?.name ?: "Converter"),
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.back)
                     }
                 },
                 actions = {
@@ -152,7 +161,7 @@ fun ConverterScreen(
                         IconButton(onClick = { editMode = !editMode }) {
                             Icon(
                                 if (editMode) Icons.Default.Done else Icons.Default.DragIndicator,
-                                contentDescription = if (editMode) "Done reordering" else "Reorder units",
+                                contentDescription = if (editMode) strings.done else strings.reorderUnits,
                                 tint = if (editMode) MaterialTheme.colorScheme.primary
                                        else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -171,7 +180,7 @@ fun ConverterScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No units available", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(strings.noUnits, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             return@Scaffold
         }
@@ -193,7 +202,7 @@ fun ConverterScreen(
             if (isCurrency) {
                 item {
                     Text(
-                        text = "Last updated: $currencyTimestamp",
+                        text = "${strings.lastUpdated} $currencyTimestamp",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
@@ -282,6 +291,7 @@ fun ConverterScreen(
                         unitName = unit.name,
                         unitSymbol = unit.symbol,
                         value = unitValue,
+                        placeholder = strings.insertValue,
                         isActive = isActive,
                         isStringBased = isStringBased,
                         editMode = editMode,
@@ -305,6 +315,7 @@ private fun UnitRow(
     unitName: String,
     unitSymbol: String,
     value: String,
+    placeholder: String,
     isActive: Boolean,
     isStringBased: Boolean,
     editMode: Boolean,
@@ -370,6 +381,15 @@ private fun UnitRow(
             onValueChange = onValueChange,
             singleLine = true,
             enabled = !editMode,
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
             modifier = Modifier.weight(1.2f),
             shape = RoundedCornerShape(8.dp),
             textStyle = LocalTextStyle.current.copy(

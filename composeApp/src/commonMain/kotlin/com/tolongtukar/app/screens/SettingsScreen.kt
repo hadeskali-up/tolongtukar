@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import com.tolongtukar.app.SettingsKeys
 import com.tolongtukar.app.SettingsStorage
 import com.tolongtukar.app.billing.PurchaseManager
+import com.tolongtukar.app.i18n.Lang
+import com.tolongtukar.app.i18n.LocalStrings
 import com.tolongtukar.app.util.openUrl
 
 private const val TERMS_URL = "https://alisuhari.top/tolongtukar/terms.html"
@@ -33,8 +35,11 @@ fun SettingsScreen(
     onToggleDarkMode: (Boolean) -> Unit,
     onToggleFollowSystem: (Boolean) -> Unit,
     settings: SettingsStorage,
-    onProStatusChanged: () -> Unit
+    onProStatusChanged: () -> Unit,
+    currentLang: Lang,
+    onLanguageChange: (Lang) -> Unit
 ) {
+    val strings = LocalStrings.current
     val purchaseManager = remember { PurchaseManager() }
     var isPro by remember { mutableStateOf(settings.getBoolean(SettingsKeys.IS_PRO, false)) }
     var isPurchasing by remember { mutableStateOf(false) }
@@ -59,13 +64,13 @@ fun SettingsScreen(
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
-            title = { Text("Ads Removed! 🎉") },
-            text = { Text("Thank you for your purchase! TolongTukar is now ad-free forever.") },
+            title = { Text(strings.adsRemovedTitle) },
+            text = { Text(strings.adsRemovedBody) },
             confirmButton = {
                 TextButton(onClick = {
                     showSuccessDialog = false
                     onProStatusChanged()
-                }) { Text("Great!") }
+                }) { Text(strings.great) }
             }
         )
     }
@@ -73,10 +78,10 @@ fun SettingsScreen(
     purchaseError?.let { error ->
         AlertDialog(
             onDismissRequest = { purchaseError = null },
-            title = { Text("Purchase Failed") },
+            title = { Text(strings.purchaseFailed) },
             text = { Text(error) },
             confirmButton = {
-                TextButton(onClick = { purchaseError = null }) { Text("OK") }
+                TextButton(onClick = { purchaseError = null }) { Text(strings.ok) }
             }
         )
     }
@@ -84,10 +89,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.settings, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.back)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -106,7 +111,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // === APPEARANCE SECTION ===
-            SectionHeader("Appearance")
+            SectionHeader(strings.appearance)
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -131,9 +136,9 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Follow System Theme", fontWeight = FontWeight.Medium)
+                            Text(strings.followSystem, fontWeight = FontWeight.Medium)
                             Text(
-                                "Match device light/dark setting",
+                                strings.followSystemDesc,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -163,7 +168,7 @@ fun SettingsScreen(
                         Spacer(Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Dark Mode",
+                                strings.darkMode,
                                 fontWeight = FontWeight.Medium,
                                 color = if (followSystem)
                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
@@ -179,8 +184,55 @@ fun SettingsScreen(
                 }
             }
 
+            // === LANGUAGE SECTION ===
+            SectionHeader(strings.language)
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Language,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(strings.language, fontWeight = FontWeight.Medium)
+                        Text(
+                            strings.languageDesc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // EN / MS segmented toggle
+                    SingleChoiceSegmentedButtonRow {
+                        SegmentedButton(
+                            selected = currentLang == Lang.EN,
+                            onClick = { onLanguageChange(Lang.EN) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) { Text("EN") }
+                        SegmentedButton(
+                            selected = currentLang == Lang.MS,
+                            onClick = { onLanguageChange(Lang.MS) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) { Text("MS") }
+                    }
+                }
+            }
+
             // === REMOVE ADS SECTION ===
-            SectionHeader("Premium")
+            SectionHeader(strings.premium)
 
             if (isPro) {
                 // Already purchased — show Pro badge
@@ -207,13 +259,13 @@ fun SettingsScreen(
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
-                                "Premium Active",
+                                strings.premiumActive,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                "Ads removed forever. Thank you! 💙",
+                                strings.premiumActiveDesc,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -244,12 +296,12 @@ fun SettingsScreen(
                             modifier = Modifier.size(40.dp)
                         )
                         Text(
-                            "Remove Ads Forever",
+                            strings.removeAdsTitle,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
                         Text(
-                            "Enjoy TolongTukar without any advertisements.\nOne-time purchase. No subscriptions.",
+                            strings.removeAdsDesc,
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -284,7 +336,7 @@ fun SettingsScreen(
                                 )
                             } else {
                                 Text(
-                                    "Remove Ads — RM 4.99",
+                                    strings.removeAdsButton,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp
                                 )
@@ -295,7 +347,7 @@ fun SettingsScreen(
             }
 
             // === ABOUT SECTION ===
-            SectionHeader("About")
+            SectionHeader(strings.about)
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -319,7 +371,7 @@ fun SettingsScreen(
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.width(16.dp))
-                        Text("Version", fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text(strings.version, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                         Text(
                             "1.0.0",
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -343,7 +395,7 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.width(16.dp))
                         Text(
-                            "Terms & Conditions",
+                            strings.terms,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f)
                         )
@@ -372,7 +424,7 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.width(16.dp))
                         Text(
-                            "Privacy Policy",
+                            strings.privacy,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f)
                         )

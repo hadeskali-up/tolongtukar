@@ -82,6 +82,13 @@ object ConversionEngine {
             return convertStringBased(category, fromUnitId, toUnitId, value.toLong())
         }
 
+        // Currency routes through CurrencyConverter's LIVE mutable rates, not the
+        // stale UnitDefs cached at class-load. Otherwise fetched forex rates are ignored.
+        if (categoryId == "currency") {
+            val result = CurrencyConverter.convert(value, fromUnitId, toUnitId)
+            return ConversionResult.Number(result, formatNumber(result))
+        }
+
         val fromUnit = category.units.find { it.id == fromUnitId }
             ?: return ConversionResult.Number(0.0, "—")
         val toUnit = category.units.find { it.id == toUnitId }
@@ -136,6 +143,13 @@ object ConversionEngine {
     ): Map<String, String> {
         val category = UnitDefinitions.getCategory(categoryId)
             ?: return emptyMap()
+
+        // Currency uses LIVE rates from CurrencyConverter (see convert()).
+        if (categoryId == "currency") {
+            return CurrencyConverter.currencyCodes.associate { code ->
+                code to formatNumber(CurrencyConverter.convert(value, fromUnitId, code))
+            }
+        }
 
         val fromUnit = category.units.find { it.id == fromUnitId }
             ?: return emptyMap()

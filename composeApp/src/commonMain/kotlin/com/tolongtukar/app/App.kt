@@ -2,6 +2,10 @@ package com.tolongtukar.app
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
+import com.tolongtukar.app.i18n.I18n
+import com.tolongtukar.app.i18n.Lang
+import com.tolongtukar.app.i18n.LocalStrings
 import com.tolongtukar.app.navigation.Screen
 import com.tolongtukar.app.screens.ConverterScreen
 import com.tolongtukar.app.screens.HomeScreen
@@ -28,6 +32,12 @@ fun App() {
     }
     var followSystem by remember { mutableStateOf(darkModePref == "system") }
 
+    // Language state — persisted; drives the localized strings provided below.
+    var lang by remember {
+        mutableStateOf(Lang.fromCode(settings.getString(SettingsKeys.LANGUAGE, Lang.EN.code)))
+    }
+    val strings = remember(lang) { I18n.strings(lang) }
+
     val effectiveDark = if (followSystem) systemDark else darkMode
 
     if (showSplash) {
@@ -35,6 +45,7 @@ fun App() {
         return
     }
 
+    CompositionLocalProvider(LocalStrings provides strings) {
     TolongTukarTheme(darkTheme = effectiveDark) {
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
         val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
@@ -87,7 +98,12 @@ fun App() {
                     settings.putString(SettingsKeys.DARK_MODE, if (fs) "system" else if (darkMode) "true" else "false")
                 },
                 settings = settings,
-                onProStatusChanged = { isPro = settings.getBoolean(SettingsKeys.IS_PRO, false) }
+                onProStatusChanged = { isPro = settings.getBoolean(SettingsKeys.IS_PRO, false) },
+                currentLang = lang,
+                onLanguageChange = { newLang ->
+                    lang = newLang
+                    settings.putString(SettingsKeys.LANGUAGE, newLang.code)
+                }
             )
             is Screen.Converter -> {
                 val category = (currentScreen as Screen.Converter).category
@@ -98,5 +114,6 @@ fun App() {
                 )
             }
         }
+    }
     }
 }
