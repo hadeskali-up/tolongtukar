@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -329,29 +330,54 @@ private fun UnitRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .height(72.dp)
             .shadow(animShadow.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(
-                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                else if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                when {
+                    isDragging -> MaterialTheme.colorScheme.primaryContainer
+                    isActive -> MaterialTheme.colorScheme.surface
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                }
             )
-            // Spring scale + alpha via graphicsLayer
+            .then(
+                if (isActive && !editMode) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .graphicsLayer {
                 scaleX = animScale
                 scaleY = animScale
                 alpha = animAlpha
             }
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Active indicator stripe - 4dp thick cyan bar on left
+        if (isActive && !editMode) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(48.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary,
+                        RoundedCornerShape(2.dp)
+                    )
+            )
+        }
+        
         if (editMode) {
             Icon(
                 Icons.Default.DragIndicator,
                 contentDescription = "Drag to reorder",
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -362,7 +388,7 @@ private fun UnitRow(
         ) {
             Text(
                 text = unitName,
-                fontSize = 13.sp,
+                fontSize = if (isActive) 15.sp else 14.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2
@@ -371,7 +397,7 @@ private fun UnitRow(
                 Text(
                     text = unitSymbol,
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
         }
@@ -384,17 +410,17 @@ private fun UnitRow(
             placeholder = {
                 Text(
                     text = placeholder,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     textAlign = TextAlign.End,
                     modifier = Modifier.fillMaxWidth()
                 )
             },
-            modifier = Modifier.weight(1.2f),
-            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.weight(1.3f),
+            shape = RoundedCornerShape(10.dp),
             textStyle = LocalTextStyle.current.copy(
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.End
             ),
             keyboardOptions = KeyboardOptions(
@@ -402,10 +428,10 @@ private fun UnitRow(
             ),
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                 disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
             )
