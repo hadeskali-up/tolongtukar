@@ -77,7 +77,7 @@ fun SplashScreen(onFinished: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White),
+            .background(Color(0xFFFAFAF8)),
         contentAlignment = Alignment.Center
     ) {
         // Use the launcher foreground as splash logo

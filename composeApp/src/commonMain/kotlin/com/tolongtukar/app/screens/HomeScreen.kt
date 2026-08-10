@@ -3,6 +3,8 @@ package com.tolongtukar.app.screens
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -16,7 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -24,17 +28,41 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tolongtukar.app.SettingsKeys
 import com.tolongtukar.app.SettingsStorage
 import com.tolongtukar.app.ads.BannerAd
 import com.tolongtukar.app.converter.UnitDefinitions
 import com.tolongtukar.app.navigation.Screen
+import com.tolongtukar.app.theme.Navy
+import com.tolongtukar.app.theme.Orange
 
 private data class CategoryTile(
     val categoryId: String,
     val name: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val chipColor: Color
 )
+
+@Composable
+private fun Wordmark() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        SplashLogo(modifier = Modifier.size(30.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "Tolong",
+            fontWeight = FontWeight.Bold,
+            fontSize = 19.sp,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            "Tukar",
+            fontWeight = FontWeight.Bold,
+            fontSize = 19.sp,
+            color = MaterialTheme.colorScheme.secondary
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,13 +114,13 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TolongTukar", fontWeight = FontWeight.Bold) },
+                title = { Wordmark() },
                 actions = {
                     IconButton(onClick = { editMode = !editMode }) {
                         Icon(
                             if (editMode) Icons.Default.Done else Icons.Default.Edit,
                             contentDescription = if (editMode) "Done reordering" else "Reorder categories",
-                            tint = if (editMode) MaterialTheme.colorScheme.primary
+                            tint = if (editMode) MaterialTheme.colorScheme.secondary
                                    else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -113,7 +141,7 @@ fun HomeScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         },
@@ -143,15 +171,15 @@ fun HomeScreen(
 
                 // --- SPRING ANIMATIONS ---
                 val animScale by animateFloatAsState(
-                    targetValue = if (isDragging) 1.1f else 1.0f,
+                    targetValue = if (isDragging) 1.08f else 1.0f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMediumLow
+                        stiffness = Spring.StiffnessMedium
                     ),
                     label = "scale"
                 )
                 val animShadow by animateFloatAsState(
-                    targetValue = if (isDragging) 16f else 0f,
+                    targetValue = if (isDragging) 14f else 0f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioLowBouncy,
                         stiffness = Spring.StiffnessLow
@@ -159,7 +187,7 @@ fun HomeScreen(
                     label = "shadow"
                 )
                 val animAlpha by animateFloatAsState(
-                    targetValue = if (isDragging) 0.7f else 1.0f,
+                    targetValue = if (isDragging) 0.85f else 1.0f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMedium
@@ -217,6 +245,7 @@ fun HomeScreen(
                 CategoryCard(
                     name = tile.name,
                     icon = tile.icon,
+                    chipColor = tile.chipColor,
                     editMode = editMode,
                     isDragging = isDragging,
                     animScale = animScale,
@@ -245,6 +274,7 @@ fun HomeScreen(
 private fun CategoryCard(
     name: String,
     icon: ImageVector,
+    chipColor: Color,
     editMode: Boolean,
     isDragging: Boolean,
     animScale: Float,
@@ -253,7 +283,12 @@ private fun CategoryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    val borderColor = if (isDragging)
+        MaterialTheme.colorScheme.secondary
+    else
+        MaterialTheme.colorScheme.outline
+
+    Surface(
         onClick = onClick,
         enabled = !editMode,
         modifier = modifier
@@ -266,37 +301,40 @@ private fun CategoryCard(
                 alpha = animAlpha
             },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDragging)
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp),
+                    .padding(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    icon,
-                    contentDescription = name,
-                    modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(chipColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = name,
+                        modifier = Modifier.size(26.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 Text(
                     name,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     minLines = 1,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -306,8 +344,8 @@ private fun CategoryCard(
                     contentDescription = null,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(20.dp),
+                        .padding(6.dp)
+                        .size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
@@ -316,33 +354,41 @@ private fun CategoryCard(
 }
 
 private fun buildCategoryTiles(): List<CategoryTile> {
+    // Distinct icons per category — no duplicates. Tinted chips rotate navy/orange family.
+    val navyChip = Color(0xFFE4EDF6)    // soft navy tint
+    val orangeChip = Color(0xFFFDEBD7)  // soft orange tint
+    val tealChip = Color(0xFFE0F0EC)    // soft teal tint
+    val plumChip = Color(0xFFF1E7F0)    // soft plum tint
+
     val iconMap = mapOf(
-        "length" to Icons.Default.Straighten,
-        "area" to Icons.Default.CropSquare,
-        "volume" to Icons.Default.WaterDrop,
-        "mass" to Icons.Default.Scale,
-        "time" to Icons.Default.Schedule,
-        "speed" to Icons.Default.Speed,
-        "force" to Icons.Default.Bolt,
-        "fuel_consumption" to Icons.Default.LocalGasStation,
-        "pressure" to Icons.Default.Compress,
-        "energy" to Icons.Default.Bolt,
-        "power" to Icons.Default.ElectricalServices,
-        "angle" to Icons.Default.Architecture,
-        "torque" to Icons.Default.Settings,
-        "digital_data" to Icons.Default.Memory,
-        "si_prefixes" to Icons.Default.Science,
-        "density" to Icons.Default.BlurOn,
-        "temperature" to Icons.Default.Thermostat,
-        "numeral_systems" to Icons.Default.Code,
-        "shoe_size" to Icons.AutoMirrored.Filled.DirectionsWalk,
-        "currency" to Icons.Default.AttachMoney
+        "length" to (Icons.Default.Straighten to navyChip),
+        "area" to (Icons.Default.CropSquare to orangeChip),
+        "volume" to (Icons.Default.WaterDrop to tealChip),
+        "mass" to (Icons.Default.Scale to plumChip),
+        "time" to (Icons.Default.Schedule to navyChip),
+        "speed" to (Icons.Default.Speed to orangeChip),
+        "force" to (Icons.Default.Bolt to tealChip),
+        "fuel_consumption" to (Icons.Default.LocalGasStation to plumChip),
+        "pressure" to (Icons.Default.Compress to navyChip),
+        "energy" to (Icons.Default.WbSunny to orangeChip),
+        "power" to (Icons.Default.ElectricalServices to tealChip),
+        "angle" to (Icons.Default.Architecture to plumChip),
+        "torque" to (Icons.Default.Cached to navyChip),
+        "digital_data" to (Icons.Default.Memory to orangeChip),
+        "si_prefixes" to (Icons.Default.Science to tealChip),
+        "density" to (Icons.Default.BlurOn to plumChip),
+        "temperature" to (Icons.Default.Thermostat to navyChip),
+        "numeral_systems" to (Icons.Default.Code to orangeChip),
+        "shoe_size" to (Icons.AutoMirrored.Filled.DirectionsWalk to tealChip),
+        "currency" to (Icons.Default.AttachMoney to plumChip)
     )
     return UnitDefinitions.categories.map { cat ->
+        val (icon, chip) = iconMap[cat.id] ?: (Icons.Default.Category to navyChip)
         CategoryTile(
             categoryId = cat.id,
             name = cat.name,
-            icon = iconMap[cat.id] ?: Icons.Default.Category
+            icon = icon,
+            chipColor = chip
         )
     }
 }

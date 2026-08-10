@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -315,16 +316,28 @@ private fun UnitRow(
     modifier: Modifier = Modifier,
     onValueChange: (String) -> Unit
 ) {
+    val rowBorderColor = when {
+        isDragging -> MaterialTheme.colorScheme.secondary
+        isActive -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.outline
+    }
+    val rowBackground = when {
+        isDragging -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+        else -> MaterialTheme.colorScheme.surface
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(68.dp)
             .shadow(animShadow.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                else if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            .background(rowBackground)
+            .border(
+                width = if (isActive || isDragging) 1.5.dp else 1.dp,
+                color = rowBorderColor,
+                shape = RoundedCornerShape(12.dp)
             )
             // Spring scale + alpha via graphicsLayer
             .graphicsLayer {
