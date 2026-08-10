@@ -395,7 +395,14 @@ object UnitDefinitions {
 
     // ── Lookup helpers ──
 
-    fun getCategory(id: String): CategoryDef? = categories.find { it.id == id }
+    fun getCategory(id: String): CategoryDef? {
+        // Currency rates are mutable and refreshed daily. Rebuild these UnitDefs
+        // on lookup so conversions use the newest factors instead of startup data.
+        if (id == "currency") {
+            return CategoryDef("currency", "Currency", CurrencyConverter.currencyUnits())
+        }
+        return categories.find { it.id == id }
+    }
 
     fun getCategoryByName(name: String): CategoryDef? =
         categories.find { it.name.equals(name, ignoreCase = true) }

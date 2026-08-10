@@ -6,6 +6,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
@@ -25,6 +26,25 @@ actual class PurchaseManager : PurchasesUpdatedListener {
     private var errorCallback: ((String) -> Unit)? = null
     private var isServiceConnected = false
 
+    private fun acknowledgeAndUnlock(purchase: Purchase, onComplete: (() -> Unit)? = null) {
+        if (purchase.isAcknowledged) {
+            SettingsStorage().putBoolean(SettingsKeys.IS_PRO, true)
+            onComplete?.invoke()
+            return
+        }
+        val params = AcknowledgePurchaseParams.newBuilder()
+            .setPurchaseToken(purchase.purchaseToken)
+            .build()
+        billingClient?.acknowledgePurchase(params) { result ->
+            if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                SettingsStorage().putBoolean(SettingsKeys.IS_PRO, true)
+                onComplete?.invoke()
+            } else {
+                errorCallback?.invoke("Purchase acknowledgement failed: ${result.debugMessage}")
+            }
+        }
+    }
+
     actual fun initialize() {
         if (billingClient != null) return
         val context = ContextHolder.context
@@ -36,7 +56,7 @@ actual class PurchaseManager : PurchasesUpdatedListener {
                     .build()
             )
             .build()
-        startConnection()
+        // Connection starts on the first status query or purchase request.
     }
 
     private fun startConnection() {
@@ -133,41 +153,54 @@ actual class PurchaseManager : PurchasesUpdatedListener {
     }
 
     actual fun checkPurchaseStatus(onResult: (Boolean) -> Unit) {
-        if (!isServiceConnected) {
-            val settings = SettingsStorage()
-            onResult(settings.getBoolean(SettingsKeys.IS_PRO, false))
-            return
+        fun queryPurchases() {
+            val params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.INAPP)
+                .build()
+            billingClient?.queryPurchasesAsync(params) { billingResult, purchases ->
+                if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    onResult(SettingsStorage().getBoolean(SettingsKeys.IS_PRO, false))
+                    return@queryPurchasesAsync
+                }
+                val validPurchases = purchases.filter {
+                    it.products.contains(SKU_REMOVE_ADS) &&
+                        it.purchaseState == Purchase.PurchaseState.PURCHASED
+                }
+                validPurchases.forEach { acknowledgeAndUnlock(it) }
+                val hasPro = validPurchases.isNotEmpty()
+                SettingsStorage().putBoolean(SettingsKeys.IS_PRO, hasPro)
+                onResult(hasPro)
+            }
         }
-        val params = QueryPurchasesParams.newBuilder()
-            .setProductType(BillingClient.ProductType.INAPP)
-            .build()
-        billingClient?.queryPurchasesAsync(params) { billingResult, purchases ->
-            if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-                val settings = SettingsStorage()
-                onResult(settings.getBoolean(SettingsKeys.IS_PRO, false))
-                return@queryPurchasesAsync
-            }
-            val hasPro = purchases.any {
-                it.products.contains(SKU_REMOVE_ADS) &&
-                it.purchaseState == Purchase.PurchaseState.PURCHASED
-            }
-            if (hasPro) {
-                SettingsStorage().putBoolean(SettingsKeys.IS_PRO, true)
-            }
-            onResult(hasPro)
+
+        if (isServiceConnected) {
+            queryPurchases()
+        } else {
+            billingClient?.startConnection(object : BillingClientStateListener {
+                override fun onBillingSetupFinished(result: BillingResult) {
+                    if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                        isServiceConnected = true
+                        queryPurchases()
+                    } else {
+                        onResult(SettingsStorage().getBoolean(SettingsKeys.IS_PRO, false))
+                    }
+                }
+                override fun onBillingServiceDisconnected() {
+                    isServiceConnected = false
+                }
+            }) ?: onResult(SettingsStorage().getBoolean(SettingsKeys.IS_PRO, false))
         }
     }
 
     override fun onPurchasesUpdated(billingResult: BillingResult, purchases: List<Purchase>?) {
         when (billingResult.responseCode) {
             BillingClient.BillingResponseCode.OK -> {
-                val valid = purchases?.any {
+                val validPurchase = purchases?.firstOrNull {
                     it.products.contains(SKU_REMOVE_ADS) &&
                     it.purchaseState == Purchase.PurchaseState.PURCHASED
-                } ?: false
-                if (valid) {
-                    SettingsStorage().putBoolean(SettingsKeys.IS_PRO, true)
-                    successCallback?.invoke()
+                }
+                if (validPurchase != null) {
+                    acknowledgeAndUnlock(validPurchase) { successCallback?.invoke() }
                 }
             }
             BillingClient.BillingResponseCode.USER_CANCELED -> {

@@ -49,6 +49,7 @@ fun SettingsScreen(
         purchaseManager.initialize()
         purchaseManager.checkPurchaseStatus { pro ->
             isPro = pro
+            onProStatusChanged()
         }
     }
 

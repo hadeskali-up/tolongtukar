@@ -94,7 +94,8 @@ fun App() {
                 ConverterScreen(
                     category = category,
                     onBack = { goBack() },
-                    settings = settings
+                    settings = settings,
+                    isPro = isPro
                 )
             }
         }

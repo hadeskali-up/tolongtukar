@@ -47,10 +47,11 @@ import kotlinx.coroutines.launch
 fun ConverterScreen(
     category: String,
     onBack: () -> Unit,
-    settings: SettingsStorage
+    settings: SettingsStorage,
+    isPro: Boolean
 ) {
     val scope = rememberCoroutineScope()
-    val cat = remember(category) { UnitDefinitions.getCategory(category) }
+    val cat = UnitDefinitions.getCategory(category)
     val isStringBased = remember(category) { cat?.isStringBased == true }
     val isCurrency = category == "currency"
 
@@ -80,17 +81,6 @@ fun ConverterScreen(
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
-    LaunchedEffect(category) {
-        if (isCurrency) {
-            scope.launch {
-                val ts = ForexService.updateRates()
-                if (ts != null) {
-                    currencyTimestamp = ts
-                }
-            }
-        }
-    }
-
     // No prefilled values — fields start empty, user types to convert
 
     fun saveOrder(order: List<String>) {
@@ -99,19 +89,36 @@ fun ConverterScreen(
 
     fun onUnitInput(unitId: String, input: String) {
         activeUnitId = unitId
-        if (cat == null) return
+        // Resolve dynamically because daily currency rates can change after screen creation.
+        val currentCategory = UnitDefinitions.getCategory(category) ?: return
         if (input.isBlank()) {
             values = unitOrder.associate { it to "" }
             return
         }
         if (isStringBased) {
-            val results = ConversionEngine.convertStringToAll(cat.id, unitId, input)
+            val results = ConversionEngine.convertStringToAll(currentCategory.id, unitId, input)
             values = results.toMutableMap().apply { put(unitId, input) }
         } else {
             val numericValue = input.toDoubleOrNull()
             if (numericValue == null) return
-            val results = ConversionEngine.convertToAll(cat.id, unitId, numericValue)
+            val results = ConversionEngine.convertToAll(currentCategory.id, unitId, numericValue)
             values = results.toMutableMap().apply { put(unitId, input) }
+        }
+    }
+
+    LaunchedEffect(category) {
+        if (isCurrency) {
+            scope.launch {
+                val ts = ForexService.updateRates()
+                if (ts != null) {
+                    currencyTimestamp = ts
+                    // Recalculate visible values using the newly fetched daily rates.
+                    val currentInput = values[activeUnitId].orEmpty()
+                    if (activeUnitId.isNotEmpty() && currentInput.isNotBlank()) {
+                        onUnitInput(activeUnitId, currentInput)
+                    }
+                }
+            }
         }
     }
 
@@ -179,7 +186,7 @@ fun ConverterScreen(
             if (isCurrency) {
                 item {
                     Text(
-                        text = "Last updated: $currencyTimestamp",
+                        text = "Rates updated daily · Last updated: $currencyTimestamp",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
@@ -283,13 +290,14 @@ fun ConverterScreen(
                 }
             }
 
-            // Placeholder ad at bottom of converter list
-            item {
-                BannerAd(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                )
+            if (!isPro) {
+                item {
+                    BannerAd(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    )
+                }
             }
         }
     }
@@ -390,11 +398,11 @@ private fun UnitRow(
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
                 disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
             )
         )
     }
