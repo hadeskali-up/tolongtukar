@@ -260,12 +260,7 @@ fun HomeScreen(
             }
         }
 
-        // AdMob banner at bottom of Home screen (hidden if Pro)
-        if (!isPro) {
-            BannerAd(
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        // AdMob banner removed from Home — placeholder shown in ConverterScreen instead
         }
     }
 }

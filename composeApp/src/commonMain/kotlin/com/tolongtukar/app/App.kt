@@ -17,8 +17,8 @@ fun App() {
     // Splash state — show splash on app launch
     var showSplash by remember { mutableStateOf(true) }
 
-    // "system" follows device theme, otherwise explicit true/false
-    val darkModePref = remember { settings.getString(SettingsKeys.DARK_MODE, "system") }
+    // Default to light mode ("false"); user can toggle in Settings
+    val darkModePref = remember { settings.getString(SettingsKeys.DARK_MODE, "false") }
     val systemDark = isSystemInDarkTheme()
     var darkMode by remember {
         mutableStateOf(

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tolongtukar.app.SettingsKeys
 import com.tolongtukar.app.SettingsStorage
+import com.tolongtukar.app.ads.BannerAd
 import com.tolongtukar.app.converter.ConversionEngine
 import com.tolongtukar.app.converter.CurrencyConverter
 import com.tolongtukar.app.converter.ForexService
@@ -85,28 +86,12 @@ fun ConverterScreen(
                 val ts = ForexService.updateRates()
                 if (ts != null) {
                     currencyTimestamp = ts
-                    if (activeUnitId.isNotEmpty()) {
-                        val input = values[activeUnitId] ?: "1"
-                        val numVal = input.toDoubleOrNull() ?: 1.0
-                        val results = ConversionEngine.convertToAll("currency", activeUnitId, numVal)
-                        values = results.toMutableMap().apply { put(activeUnitId, input) }
-                    }
                 }
             }
         }
     }
 
-    LaunchedEffect(category) {
-        if (unitOrder.isNotEmpty()) {
-            activeUnitId = unitOrder.first()
-            val firstUnitId = unitOrder.first()
-            if (isStringBased) {
-                values = ConversionEngine.convertStringToAll(cat!!.id, firstUnitId, "1")
-            } else {
-                values = ConversionEngine.convertToAll(cat!!.id, firstUnitId, 1.0)
-            }
-        }
-    }
+    // No prefilled values — fields start empty, user types to convert
 
     fun saveOrder(order: List<String>) {
         settings.putString(SettingsKeys.UNIT_ORDER_PREFIX + category, order.joinToString(","))
@@ -296,6 +281,15 @@ fun ConverterScreen(
                         onValueChange = { onUnitInput(unitId, it) }
                     )
                 }
+            }
+
+            // Placeholder ad at bottom of converter list
+            item {
+                BannerAd(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                )
             }
         }
     }

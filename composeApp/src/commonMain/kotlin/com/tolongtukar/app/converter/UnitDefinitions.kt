@@ -26,7 +26,10 @@ object UnitDefinitions {
     // ═══════════════════════════════════════════════════════════════════════
 
     val categories: List<CategoryDef> = listOf(
-        // ── 1. LENGTH (base: meters) ──
+        // ── 1. CURRENCY ──
+        CategoryDef("currency", "Currency", CurrencyConverter.currencyUnits()),
+
+        // ── 2. LENGTH (base: meters) ──
         CategoryDef("length", "Length", listOf(
             factor("meters", "Meters", "m", 1.0),
             factor("feet", "Feet", "ft", 0.3048),
@@ -387,10 +390,7 @@ object UnitDefinitions {
                 toBase = { it },
                 fromBase = { it }
             )
-        )),
-
-        // ── 20. CURRENCY ──
-        CategoryDef("currency", "Currency", CurrencyConverter.currencyUnits())
+        ))
     )
 
     // ── Lookup helpers ──
