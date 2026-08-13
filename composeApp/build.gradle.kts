@@ -78,12 +78,33 @@ kotlin {
 
 android {
     namespace = "com.tolongtukar.app"
-    compileSdk = 35
+    compileSdk = 36
+
+    val releaseKeystorePath = System.getenv("TOLONGTUKAR_KEYSTORE_PATH")
+    val releaseStorePassword = System.getenv("TOLONGTUKAR_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("TOLONGTUKAR_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("TOLONGTUKAR_KEY_PASSWORD")
+
+    signingConfigs {
+        if (
+            !releaseKeystorePath.isNullOrBlank() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.tolongtukar.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -91,6 +112,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

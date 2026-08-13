@@ -22,7 +22,7 @@ import com.tolongtukar.app.SettingsStorage
 import com.tolongtukar.app.billing.PurchaseManager
 import com.tolongtukar.app.util.openUrl
 
-private const val TERMS_URL = "https://alisuhari.top/tolongtukar/terms.html"
+private const val TERMS_URL = "https://tolongtukar.com/terms.html"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
