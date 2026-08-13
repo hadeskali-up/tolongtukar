@@ -36,6 +36,16 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tolongtukar-upload.jks"
           test -s "$RUNNER_TEMP/tolongtukar-upload.jks"
 
+      - name: Verify upload keystore
+        shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.TOLONGTUKAR_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TOLONGTUKAR_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          keytool -list -keystore "$RUNNER_TEMP/tolongtukar-upload.jks" \
+            -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" >/dev/null
+
       - name: Test and build signed release bundle
         env:
           TOLONGTUKAR_KEYSTORE_PATH: ${{ runner.temp }}/tolongtukar-upload.jks
