@@ -66,8 +66,8 @@ kotlin {
             implementation("io.ktor:ktor-client-okhttp:3.0.3")
             // Google AdMob
             implementation("com.google.android.gms:play-services-ads:23.3.0")
-            // Google Play Billing (in-app purchases)
-            implementation("com.android.billingclient:billing:7.1.1")
+            // Google Play Billing (in-app purchases) — PBL 9 required by Play as of Aug 31 2026
+            implementation("com.android.billingclient:billing:9.1.0")
         }
 
         iosMain.dependencies {
