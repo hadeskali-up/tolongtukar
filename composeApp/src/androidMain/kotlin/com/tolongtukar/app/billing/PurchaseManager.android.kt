@@ -124,13 +124,19 @@ actual class PurchaseManager : PurchasesUpdatedListener {
             .setProductList(productList)
             .build()
 
-        billingClient?.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
+        billingClient?.queryProductDetailsAsync(params) { billingResult, result ->
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                 errorCallback?.invoke("Failed to load product: ${billingResult.debugMessage}")
                 return@queryProductDetailsAsync
             }
+            // PBL 9: onProductDetailsResponse now receives QueryProductDetailsResult
+            // (fetched productDetailsList + unfetchedProductList) instead of a raw list.
+            val productDetailsList = result.productDetailsList
             if (productDetailsList.isEmpty()) {
-                errorCallback?.invoke("Product 'remove_ads' not found. Add it in Play Console.")
+                val unfetched = result.unfetchedProductList
+                    .joinToString { it.productId }
+                errorCallback?.invoke("Product 'remove_ads' not found. Add it in Play Console." +
+                    if (unfetched.isNotEmpty()) " Unfetched: $unfetched" else "")
                 return@queryProductDetailsAsync
             }
 
